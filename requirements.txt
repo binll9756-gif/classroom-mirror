@@ -1,0 +1,15 @@
+# 课镜 · 依赖清单
+# 安装：pip install -r requirements.txt
+
+# 读取迷思概念库（必需）
+PyYAML>=6.0
+
+# 调用大模型（可选：不装也能跑离线模式，指标照常计算）
+openai>=1.0
+
+# 说明书 Markdown → Word（tools/md2docx.py 用）
+python-docx>=1.1
+
+# 教案 PDF 解析（第 3 步里程碑会用到）
+# ⚠️ 不要用 PyMuPDF —— 它是 AGPL 许可，商用/服务化会传染，已被我们主动排除
+pypdf>=4.0

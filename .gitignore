@@ -1,0 +1,43 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+env/
+
+# ---- 运行时产物（每次跑都会重新生成）----
+kejing.db
+*.db
+*.sqlite
+*.sqlite3
+
+# ---- 环境变量 / 密钥（绝对不能提交）----
+.env
+.env.*
+!.env.example
+*.key
+*secret*
+
+# ---- 编辑器 / 系统 ----
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---- 大文件（视频放网盘，不进仓库）----
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.zip
+*.rar
+*.7z
+
+# ---- 输出产物 ----
+output/
+out/
+dist/
+build/

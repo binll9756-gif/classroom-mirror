@@ -1,0 +1,64 @@
+# 「负负得正」课时的典型迷思概念库
+# 用途：虚拟学生的"错误"必须来自这里，不能随机胡说
+# ⚠️ 待数学教育方向教师审阅后定稿（当前 subject_teacher_reviewed: false）
+
+topic: 有理数乘法 — 负负得正
+grade_band: 初中
+language_profile:
+  max_sentence_len: 18
+  forbidden_words: [认知负荷, 维度, 本质属性, 数学化, 建构]
+
+misconceptions:
+  - id: M-01a
+    name: 负号"消失"论
+    student_says:
+      - "负号乘负号不就自动消失了吗？"
+      - "两个负号抵消掉，就成正的了。"
+    resistance: 2                 # 被追问后仍坚持的轮数（>=1）
+    diagnostic_question: "两个负号为什么会消失？能举个例子说给我听吗？"
+    teaching_move: 回到相反数的意义，用数轴或实际情境建立理解
+
+  - id: M-01b
+    name: 只是规定论
+    student_says:
+      - "书上就是这么规定的，记住就行了嘛。"
+      - "老师说背下来就好，我背了。"
+    resistance: 2
+    diagnostic_question: "如果是规定，那为什么要这样规定？能不能从数轴上看出来？"
+    teaching_move: 让学生用规律（3×(-2) → 2×(-2) → … → (-1)×(-2)）自己推出来
+
+  - id: M-01c
+    name: 数轴方向混乱
+    student_says:
+      - "负数都在左边，两个左边的数怎么乘到右边去了？"
+      - "数轴上负数在左边，所以结果应该更小才对。"
+    resistance: 3
+    diagnostic_question: "在数轴上，乘以 -1 相当于做什么操作？"
+    teaching_move: 把"乘 -1"理解为"取相反方向"
+
+  - id: M-01d
+    name: 看不出规律
+    student_says:
+      - "(-3)×(-2) 为什么不是 -6？我算出来是负六。"
+      - "我就是按正数乘，然后随便加个负号。"
+    resistance: 2
+    diagnostic_question: "看看这串式子，你发现什么规律了吗？"
+    teaching_move: 引导观察 3×(-2)=-6、2×(-2)=-4、1×(-2)=-2、0×(-2)=0 的递变
+
+  - id: M-01e
+    name: 减号与负号混淆
+    student_says:
+      - "减号和负号不是一回事吗？"
+      - "那个横杠到底是减号还是负号啊？"
+    resistance: 2
+    diagnostic_question: "3-(-2) 和 3+(-2)，结果一样吗？为什么？"
+    teaching_move: 用运算与符号两个层面区分
+
+  - id: M-01f
+    name: 符号太多分不清
+    student_says:
+      - "符号太多了，我分不清哪个是运算、哪个是正负。"
+      - "我一看这么多符号就懵了。"
+    resistance: 1
+    diagnostic_question: "这个式子里有几个运算符？分别是什么？"
+    teaching_move: 先圈出运算符，再判断符号
