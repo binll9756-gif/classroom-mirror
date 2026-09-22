@@ -95,6 +95,49 @@ def main():
       [(x.name, x.archetype, x.misconception["id"]) for x in a]
       == [(x.name, x.archetype, x.misconception["id"]) for x in b])
 
+    print("\n=== 5.5 评价报告：代码发现问题，且不许过度解读 ===")
+    from kj import evaluator
+    # 小样本：2 次提问 → 必须出现"样本量偏小"，且不能夸 IDR
+    small_turns = [
+        {"idx": 1, "speaker": "teacher", "fias": 5, "text": "讲", "behavior": ""},
+        {"idx": 2, "speaker": "teacher", "fias": 4, "text": "等于多少？", "behavior": ""},
+        {"idx": 3, "speaker": "student", "name": "小林", "fias": 8, "text": "6",
+         "wait_ms": 4080, "behavior": "答错并坚持"},
+        {"idx": 4, "speaker": "teacher", "fias": 2, "text": "很好", "behavior": ""},
+        {"idx": 5, "speaker": "teacher", "fias": 4, "text": "小周呢？", "behavior": ""},
+        {"idx": 6, "speaker": "student", "name": "小周", "fias": 8, "text": "规定",
+         "wait_ms": 4080, "behavior": "答错并坚持"},
+        {"idx": 7, "speaker": "student", "name": "阿豪", "fias": 9, "text": "左边啊",
+         "behavior": "抢答"},
+        {"idx": 8, "speaker": "teacher", "fias": 5, "text": "再看一个", "behavior": ""},
+    ]
+    ms = fias.compute_metrics(small_turns, ["小林", "小周", "阿豪"])
+    rs = evaluator.build_report(None, ms, small_turns, ["小林", "小周", "阿豪"],
+                               write_advice=False)
+    T("IDR 确实算到了 1.5（指标本身是对的）", ms["IDR"] == 1.5, f"实际 {ms['IDR']}")
+    T("小样本时报告标注「样本量偏小」", rs["small_sample"] is True)
+    facts = " ".join(i["fact"] for i in rs["issues"])
+    T("小样本时【不】说 IDR 达到教师水平", "达到" not in facts or "IDR" not in facts,
+      facts[:50])
+    T("抢答过的学生被描述为「靠自己抢答参与」而不是「掉队」",
+      "靠自己抢答参与" in facts and "掉队" not in facts)
+    T("每条诊断都带 evidence_turn_ids 字段",
+      all("evidence_turn_ids" in i for i in rs["issues"]))
+
+    # 大样本：提问 ≥5 且发言 ≥20 → 不该再报样本量偏小
+    big = []
+    for i in range(8):
+        big.append({"idx": len(big) + 1, "speaker": "teacher", "fias": 4,
+                    "text": "为什么这么想？", "behavior": ""})
+        big.append({"idx": len(big) + 1, "speaker": "student", "name": "小林", "fias": 8,
+                    "text": "不知道", "wait_ms": 3200, "behavior": "答错并坚持"})
+        big.append({"idx": len(big) + 1, "speaker": "student", "name": "小周", "fias": 8,
+                    "text": "规定", "wait_ms": 3200, "behavior": "答错并坚持"})
+    mb = fias.compute_metrics(big, ["小林", "小周"])
+    rb = evaluator.build_report(None, mb, big, ["小林", "小周"], write_advice=False)
+    T(f"大样本（提问 {mb['teacher_questions']} 次、发言 {mb['total']} 次）不再报样本量偏小",
+      rb["small_sample"] is False)
+
     print("\n=== 6. 事件流可重算（评价可审计）===")
     import tempfile, os
     tmp = os.path.join(tempfile.gettempdir(), "kj_test.db")

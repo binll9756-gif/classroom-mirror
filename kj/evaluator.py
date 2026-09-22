@@ -37,9 +37,21 @@ def find_issues(lesson: dict | None, m: dict, turns: list[dict],
     wrong_ids = [t["idx"] for t in turns if t.get("behavior") == "答错并坚持"]
     guide_ids = [t["idx"] for t in turns if t.get("fias") in (2, 3)
                  and t.get("speaker") == "teacher"]
-    directive_ids = [t["idx"] for t in turns if t.get("fias") == 6]
 
-    # 1) IDR：低于新手教师基线
+    # --- 样本量检查：★ 这一条必须排在前面 ---
+    # 只有 2 次提问就算出 IDR=1.5，然后说"超过专家教师水平"，是过度解读。
+    # 指标本身没算错，但样本太小，不能据此下能力结论 —— 这是学术诚信问题。
+    n_q = m.get("teacher_questions") or 0
+    n_t = m.get("total") or 0
+    small = n_q < 5 or n_t < 20
+    if small:
+        add("warn", "样本量偏小",
+            f"本节课只有 {n_q} 次提问、{n_t} 次发言，样本量偏小。"
+            f"下面的指标和评分**只能作为参考**，不能据此判断教学能力。"
+            f"建议完整上一节课（提问 ≥5 次、发言 ≥20 次）再看数据。",
+            q_ids[:4])
+
+    # 1) IDR：与人类教师基线的比较
     idr = m.get("IDR")
     if idr is not None:
         if idr < 0.5:
@@ -74,12 +86,25 @@ def find_issues(lesson: dict | None, m: dict, turns: list[dict],
             f"你没等学生回答就自己把答案说了。这样学生就失去了思考的机会。",
             q_ids[:6])
 
-    # 4) 被忽略的学生
+    # 4) 有学生没被点名 —— ★ 要区分「没被点名但主动发过言」和「完全没参与」
+    #    例：过度积极型学生会主动抢答，他并不算被忽略，只是老师没把点名权给他。
     ignored = m.get("ignored_students") or []
-    if ignored:
-        add("risk", "有学生整节课没被叫到",
-            f"{'、'.join(ignored)} 整节课一次都没有被你叫到。"
-            f"课堂参与是不公平的 —— 这类学生往往也最容易掉队。",
+    spoke_names = {t.get("name") for t in turns
+                   if t.get("speaker") == "student" and t.get("text")}
+    quiet, active_only = [], []
+    for name in ignored:
+        (active_only if name in spoke_names else quiet).append(name)
+
+    if quiet:
+        add("risk", "有学生整节课没参与",
+            f"{'、'.join(quiet)} 这节课既没被叫到、也没有主动发言。"
+            f"课堂参与是不公平的 —— 这类学生往往最容易掉队。",
+            [])
+    if active_only:
+        add("warn", "有学生只靠自己主动发言",
+            f"{'、'.join(active_only)} 这节课**一次都没被你点名**，"
+            f"他是靠自己抢答参与的（发言 {sum(1 for t in turns if t.get('name') in active_only and t.get('speaker')=='student')} 次）。"
+            f"主动的孩子也需要被老师点到 —— 否则发言权只掌握在敢抢的人手里。",
             [])
 
     # 5) 提问层次
@@ -103,18 +128,28 @@ def find_issues(lesson: dict | None, m: dict, turns: list[dict],
         for g in (lesson.get("design_gaps") or [])[:3]:
             add("warn", "教案设计问题", g, [])
 
-    # --- 正面评价：至少要有一条（发展性评价原则）---
-    good = []
-    if idr is not None and idr >= IDR_NOVICE:
-        good.append(f"你的 IDR {idr} 已经达到甚至超过新手人类教师水平（{IDR_NOVICE}）")
-    if w is not None and w >= 3:
-        good.append(f"你提问后平均等待 {w} 秒，达到了教育学建议的 3 秒标准")
+    # --- 正面评价：拆成独立几条，别挤成一大段 ---
+    # ★ 小样本时不夸指标，只说「动作做对了」（避免用 2 次提问推断教学能力）
+    if not small:
+        if idr is not None and idr >= IDR_NOVICE:
+            add("good", "互动引导做得好",
+                f"你的 IDR 是 {idr}，达到了新手人类教师的水平（{IDR_NOVICE}）"
+                f"—— 说明你除了讲，也在引导学生说。", q_ids[:4])
+        if w is not None and w >= 3:
+            add("good", "等待时间达标",
+                f"你提问后平均等待 {w} 秒，达到了教育学建议的 3 秒标准。"
+                f"这会让学生回答得更完整。", q_ids[:4])
+    else:
+        if w is not None and w >= 3:
+            add("good", "等待时间达标",
+                f"你提问后平均等待 {w} 秒，达到了教育学建议的 3 秒标准（样本较小，仅供参考）。",
+                q_ids[:4])
     if m.get("answered_questions"):
-        good.append(f"你有 {m['answered_questions']} 次提问真的把话交给了学生")
-    if not ignored and roster:
-        good.append("每位学生都被你叫到过，课堂参与是公平的")
-    if good:
-        add("good", "做得好的地方", "；".join(good) + "。", q_ids[:3])
+        add("good", "把回答机会交给了学生",
+            f"你有 {m['answered_questions']} 次提问真的把话交给了学生，"
+            f"而不是自己接话。", q_ids[:3])
+    if roster and not quiet:
+        add("good", "课堂参与比较公平", "没有学生整节课被完全忽略。", [])
 
     return issues
 
@@ -202,6 +237,7 @@ def build_report(lesson: dict | None, m: dict, turns: list[dict],
         "metrics": m,
         "issues": issues,
         "risk_flags": [i["fact"] for i in issues if i["level"] == "risk"],
+        "small_sample": any(i.get("kind") == "样本量偏小" for i in issues),
         "roster": roster,
     }
 
@@ -219,7 +255,8 @@ def format_report(rep: dict) -> str:
 
     lines.append("  【评分（由代码计算，可复现）】")
     lines.append("   " + "　".join(f"{k} {shown(v)}" for k, v in s.items() if k != "综合"))
-    lines.append(f"   综合 {shown(s.get('综合'))} / 5.0")
+    tail = "　⚠️ 样本量小，仅作参考，不能据此判断教学能力" if rep.get("small_sample") else ""
+    lines.append(f"   综合 {shown(s.get('综合'))} / 5.0{tail}")
     lines.append("")
     lines.append("  【诊断结论】")
     for it in rep["issues"]:
