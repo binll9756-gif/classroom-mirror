@@ -22,6 +22,8 @@
 
 ## 二、30 秒跑起来
 
+> 📖 **要一步一步的操作步骤（含网页版怎么点、命令行指令表、常见问题）→ 看 `怎么使用.md`**
+
 ```bash
 git clone <本仓库地址>
 cd classroom-mirror
@@ -137,6 +139,7 @@ state = {"understanding": 0.2, "confusion": 0.7, "convinced": False, "patience":
 ```
 课镜项目/
 ├─ README.md                    ← 你正在看的
+├─ 怎么使用.md                   ★★ 一步一步的操作步骤（第一次用先看这份）
 ├─ 队友上手指南.md               ★ 新队友第一份要读的（git 6 条命令 + 任务认领）
 ├─ 00_先看这里.md                ← 导航页（第一步看哪三份文件）
 ├─ requirements.txt
