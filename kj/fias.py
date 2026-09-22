@@ -163,7 +163,8 @@ def format_metrics(m: dict, label: str = "") -> str:
     lines.append(f"  发言总数 {m['total']}　教师提问 {m['teacher_questions']} 次（其中 {m['answered_questions']} 次由学生作答）")
     lines.append(f"  TT 教师话语比 = {m['TT']}　　ST 学生话语比 = {m['ST']}")
     idr = m["IDR"]
-    lines.append(f"  ★ IDR 间接/直接影响比 = {idr}")
+    shown = "—（本节课没有直接讲授，无法计算）" if idr is None else idr
+    lines.append(f"  ★ IDR 间接/直接影响比 = {shown}")
     for k, v in BASELINE_IDR.items():
         lines.append(f"      （对照）{k}：{v}")
     lines.append(f"  SIR 学生主动发起比 = {m['SIR']}　← ⚠️ 受学生参与度参数影响，不作为师范生能力证据")

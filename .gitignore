@@ -41,3 +41,8 @@ output/
 out/
 dist/
 build/
+
+# ---- 截图与临时文件 ----
+_截图/
+_test_input.txt
+kejing_web.db

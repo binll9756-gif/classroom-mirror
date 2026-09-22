@@ -169,6 +169,7 @@ $("btnCast").onclick = async () => {
   S.session = d.session;
   renderSeat(d.students);
   $("say").disabled = false; $("btnSay").disabled = false;
+  $("say").placeholder = "说点什么…（提问后注意右边计时器，等 3 秒再让学生答）";
   $("btnFinish").disabled = false;
   $("say").focus();
   say("sys", "课堂已开始。试着讲一句，然后提个问题 —— 注意右边的等待计时器。");
@@ -186,7 +187,7 @@ async function refreshState(){
   // 粗略实时 IDR（完整指标以报告为准）
   const ind = d.turns.filter(t=>[1,2,3,4].includes(t.fias)).length;
   const dir = d.turns.filter(t=>[5,6,7].includes(t.fias)).length;
-  $("idr").textContent = dir ? (ind/dir).toFixed(2) : (ind ? "∞" : "—");
+  $("idr").textContent = dir ? (ind/dir).toFixed(2) : (ind ? "—" : "—");
 }
 
 async function speak(text){
@@ -221,8 +222,9 @@ $("btnSay").onclick = async () => {
   if(!t || !S.session) return;
   const wasPending = S.pending;
   $("say").value = "";
-  if(wasPending){ hidePending(); }
-  if(!wasPending) say("teacher", t, "你（老师）");
+  if(wasPending) hidePending();
+  // 注意：这里【不要】自己渲染老师的话 —— 服务端返回的 d.teacher 里已经包含，
+  // 两边都渲染会导致同一句话显示两遍（踩过这个坑）
   await speak(t);
 };
 
@@ -253,12 +255,22 @@ function markAway(n){ const e = $("stu_"+n); if(e){ e.classList.add("away");
 $("btnFinish").onclick = async () => {
   if(S.pending) hidePending();
   $("btnFinish").disabled = true;
-  const r = await fetch("/api/finish", {method:"POST", headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({session:S.session})});
-  const d = await r.json();
-  $("report").style.display = "block";
-  $("reportText").textContent = d.metrics_text + "\n\n" + d.report_text;
-  $("report").scrollIntoView({behavior:"smooth"});
+  const old = $("btnFinish").textContent;
+  $("btnFinish").textContent = "正在生成报告…";
+  say("sys", "正在生成评价报告（每条诊断都要单独措辞，约 10~20 秒）…");
+  try{
+    const r = await fetch("/api/finish", {method:"POST", headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({session:S.session})});
+    const d = await r.json();
+    $("report").style.display = "block";
+    $("reportText").textContent = d.metrics_text + "\n\n" + d.report_text;
+    $("report").scrollIntoView({behavior:"smooth"});
+  }catch(e){
+    say("sys", "报告生成失败：" + e);
+  }finally{
+    $("btnFinish").textContent = old;
+    $("btnFinish").disabled = false;
+  }
 };
 </script>
 </body>
