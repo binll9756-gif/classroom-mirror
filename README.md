@@ -32,7 +32,11 @@ pip install -r requirements.txt
 # 1) 跑检查（19 项，应该全部 ✅）
 python tests/test_fias.py
 
-# 2) ★ 正常使用：对着 AI 学生试讲（推荐先玩这个）
+# 2) ★★ 网页版（推荐，给评委看的就是这个）
+python run_web.py
+#   然后浏览器打开  http://127.0.0.1:8000
+
+# 3) 命令行版（不用开浏览器，适合自己练）
 python run_teach.py
 ```
 
@@ -128,23 +132,29 @@ state = {"understanding": 0.2, "confusion": 0.7, "convinced": False, "patience":
 ├─ .gitignore                   挡住密钥、缓存、大文件
 ├─ .env.example                 ★ 模型配置模板（复制成 .env 用）
 │
-├─ run_teach.py                 ★★ 正常使用入口：对着 AI 学生试讲（交互式）
+├─ run_web.py                   ★★ 网页版入口（给评委用的那个）
+├─ run_teach.py                 命令行版：对着 AI 学生试讲（交互式）
 ├─ run_demo.py                  脚本化两轮演示（不用输入，自动跑完）
 │
-├─ kj/                          核心代码（6 个模块，每个只管一件事）
+├─ web/
+│   └─ index.html               ★ 试讲教室页面（学生座位区 + 实时标签流 + 计时器）
+│
+├─ kj/                          核心代码（7 个模块，每个只管一件事）
 │   ├─ fias.py                  ★ 纯代码：FIAS 九类 + 编码 + 指标计算（不调用模型）
 │   ├─ students.py              ★ 虚拟学生：画像 + 认知状态机 + 台词
 │   │                              代码决定行为，模型只负责把话说出来
 │   ├─ lesson.py                教案解析 + 目标—活动—评价对齐检查（检查是纯代码）
 │   ├─ evaluator.py             ★ 评价报告：代码发现问题（带证据），模型只负责措辞
 │   ├─ store.py                 事件流存储（SQLite）+ 两轮对比
+│   ├─ web.py                   ★ Web 服务（FastAPI 接口 + 会话管理）
 │   └─ llm.py                   模型调用层（本地 Ollama / 云端，自动降级）
 │
 ├─ knowledge/
 │   └─ misconceptions.yaml      ★ 迷思概念库（⚠️ 待数学教育方向教师审阅）
 │
 ├─ tests/
-│   └─ test_fias.py             最小可跑检查（19 项，不依赖 pytest）
+│   ├─ test_fias.py             核心逻辑检查（19 项，不依赖 pytest）
+│   └─ test_web.py              Web 接口端到端检查（21 项，需先起服务）
 │
 ├─ tools/
 │   └─ md2docx.py               说明书 Markdown → Word（含字数统计）
@@ -215,9 +225,10 @@ state = {"understanding": 0.2, "confusion": 0.7, "convinced": False, "patience":
 | **教案解析 + 对齐检查** | ✅ **已完成**（`kj/lesson.py`，实测解析一份教案约 24 秒） |
 | **评价报告（带证据）** | ✅ **已完成**（`kj/evaluator.py`：代码发现问题 + 模型润色） |
 | **交互式试讲入口** | ✅ **已完成**（`python run_teach.py`） |
+| **网页界面（试讲教室 + 实时标签流 + 计时器）** | ✅ **已完成**（`python run_web.py`，Web 接口 21 项测试全过） |
 | FIAS 编码换成 LLM 调用 | ⬜ 待做（现在是关键词规则 `fias.rule_classify`，**已知会判错**） |
-| Web 界面（5 个页面） | ⬜ **待做（最大的一块）** |
-| 公网部署 + 测试账号（比赛硬要求） | ⬜ 待做 |
+| 备课台 / 学生编排独立页面 | ⬜ 待做（现在教案分析结果直接显示在页面顶部） |
+| 公网部署 + 测试账号（比赛硬要求） | ⬜ 待做（本机已能跑，**换 `--host 0.0.0.0` 即可对外**） |
 | 用户测试（n≥10） | ⬜ 待做 |
 | 说明书 | 🟡 已完成但**有 7 处【待填】**（要等真实测试数据） |
 

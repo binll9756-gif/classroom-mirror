@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>课镜 · 试讲教室</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;background:#0f172a;color:#e2e8f0;height:100vh;display:flex;flex-direction:column}
+  header{background:#1e293b;padding:10px 18px;display:flex;align-items:center;gap:16px;border-bottom:1px solid #334155}
+  header h1{font-size:17px;font-weight:600}
+  header .model{font-size:12px;color:#94a3b8}
+  header .spacer{flex:1}
+  button{background:#2563eb;color:#fff;border:0;border-radius:6px;padding:8px 14px;font-size:13px;cursor:pointer;font-family:inherit}
+  button:hover{background:#1d4ed8}
+  button:disabled{background:#475569;cursor:not-allowed}
+  button.ghost{background:#334155}
+  button.ghost:hover{background:#475569}
+  main{flex:1;display:grid;grid-template-columns:230px 1fr 300px;gap:0;overflow:hidden}
+  .pane{padding:14px;overflow-y:auto}
+  .pane-seat{border-right:1px solid #334155}
+  .pane-live{border-left:1px solid #334155}
+  .pane-title{font-size:12px;color:#94a3b8;margin-bottom:10px;letter-spacing:1px}
+  /* 学生座位区 */
+  .stu{background:#1e293b;border:1px solid #334155;border-radius:8px;padding:10px;margin-bottom:10px;position:relative}
+  .stu.talking{border-color:#22d3ee;box-shadow:0 0 0 1px #22d3ee55}
+  .stu.away{opacity:.55}
+  .stu .nm{font-size:15px;font-weight:600}
+  .stu .ar{font-size:11px;color:#94a3b8;margin-top:2px}
+  .stu .mc{font-size:11px;color:#fbbf24;margin-top:6px;line-height:1.4}
+  .bar{height:5px;background:#334155;border-radius:3px;margin-top:7px;overflow:hidden}
+  .bar i{display:block;height:100%;background:#22d3ee}
+  .badge{position:absolute;top:8px;right:8px;font-size:10px;background:#b45309;color:#fff;border-radius:4px;padding:2px 5px}
+  /* 对话流 */
+  .msg{max-width:88%;margin-bottom:10px;padding:8px 11px;border-radius:9px;font-size:14px;line-height:1.55}
+  .msg.teacher{background:#1d4ed8;margin-left:auto}
+  .msg.student{background:#1e293b;border:1px solid #334155}
+  .msg .who{font-size:11px;color:#94a3b8;margin-bottom:3px}
+  .msg .beh{font-size:11px;color:#fbbf24;margin-left:6px}
+  .msg.sys{background:transparent;color:#f59e0b;font-size:13px;text-align:center;max-width:100%;border:1px dashed #b45309}
+  .composer{display:flex;gap:8px;padding:12px 14px;border-top:1px solid #334155;background:#111c33}
+  .composer input{flex:1;background:#0b1220;border:1px solid #334155;border-radius:6px;padding:10px;color:#e2e8f0;font-size:14px;font-family:inherit}
+  .pending{display:flex;align-items:center;gap:12px;padding:10px 14px;background:#422006;border-top:1px solid #b45309;font-size:13px}
+  .timer{font-family:Consolas,monospace;font-size:20px;color:#fbbf24;min-width:64px}
+  /* 实时侧栏 */
+  .tag{display:flex;align-items:center;gap:8px;font-size:12px;padding:3px 0;border-bottom:1px dotted #1e293b}
+  .tag .no{width:16px;text-align:center;font-weight:700}
+  .tag .tx{flex:1;color:#94a3b8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .c-ind{color:#60a5fa}.c-dir{color:#f87171}.c-stu{color:#cbd5e1}
+  .sw{width:10px;height:10px;border-radius:2px}
+  .idr{background:#1e293b;border-radius:8px;padding:10px;margin-top:12px}
+  .idr .big{font-size:26px;font-weight:700;color:#22d3ee}
+  .idr .scale{font-size:11px;color:#94a3b8;margin-top:6px;line-height:1.6}
+  .kv{font-size:12px;color:#cbd5e1;margin-top:6px;line-height:1.7}
+  /* 报告 */
+  #report{padding:16px;background:#0b1220;border-top:2px solid #22d3ee;display:none;max-height:52vh;overflow-y:auto}
+  #report h2{font-size:15px;margin-bottom:8px}
+  pre{white-space:pre-wrap;font-family:Consolas,"Courier New",monospace;font-size:12.5px;line-height:1.75;color:#cbd5e1}
+  .lesson{background:#0b1220;border-bottom:1px solid #334155;padding:10px 18px;font-size:12px;color:#94a3b8}
+  .lesson b{color:#e2e8f0}
+  .warn{color:#f59e0b}
+</style>
+</head>
+<body>
+<header>
+  <h1>课镜 · 试讲教室</h1>
+  <span class="model" id="model">…</span>
+  <span class="spacer"></span>
+  <button class="ghost" id="btnCast">① 生成学生</button>
+  <button id="btnFinish" disabled>② 结束试讲并出报告</button>
+</header>
+
+<div class="lesson" id="lesson"></div>
+
+<main>
+  <div class="pane pane-seat">
+    <div class="pane-title">学生座位区</div>
+    <div id="seat"></div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;overflow:hidden">
+    <div class="pane" id="chat" style="flex:1">
+      <div class="msg sys">点右上角「生成学生」开始。然后就可以讲课了 —— 学生会提问、答错、坚持错误、走神。</div>
+    </div>
+    <div class="pending" id="pending" style="display:none">
+      <span>⏱ 你提问了 —— 让谁答？</span>
+      <span class="timer" id="timer">0.0s</span>
+      <button id="btnYield">让学生回答</button>
+      <span style="color:#94a3b8">（也可以直接继续打字 = 自问自答，会被记为抢答）</span>
+    </div>
+    <div class="composer">
+      <input id="say" placeholder="先点「生成学生」…" disabled autocomplete="off">
+      <button id="btnSay" disabled>发送</button>
+    </div>
+  </div>
+
+  <div class="pane pane-live">
+    <div class="pane-title">实时 FIAS 标签流</div>
+    <div id="tags"></div>
+    <div class="idr">
+      <div style="font-size:11px;color:#94a3b8">IDR 间接/直接影响比</div>
+      <div class="big" id="idr">—</div>
+      <div class="scale">
+        AI 教师 0.058　新手 0.885<br>专家人类教师 <b>1.473</b>
+      </div>
+    </div>
+    <div class="kv" id="livekv">提问 0 次 · 被忽略 0 人</div>
+  </div>
+</main>
+
+<div id="report">
+  <h2>评价报告</h2>
+  <pre id="reportText"></pre>
+</div>
+
+<script>
+const S = {session:null, pending:false, t0:0, timer:null, called:new Set(), idx:0};
+const QWORDS = ["吗","呢","为什么","怎么","多少","谁","什么","？","?"];
+const NAMES = {1:"接受情感",2:"表扬鼓励",3:"采纳想法",4:"提问",5:"讲授",6:"给出指令",7:"批评",8:"学生应答",9:"学生主动发起"};
+const isQ = t => QWORDS.some(w => t.includes(w));
+const $ = id => document.getElementById(id);
+
+fetch("/api/health").then(r=>r.json()).then(d=>{
+  $("model").textContent = d.model + (d.model_available ? "" : "（不可用，将用模板兜底）");
+});
+fetch("/api/lesson").then(r=>r.json()).then(L=>{
+  let h = `<b>${L.topic}</b>　目标：` + L.objectives.map(o=>o.id+" "+o.text).join("；");
+  h += `　|　学生可能的错误：` + L.likely_misconceptions.map(m=>m.name).join("、");
+  if((L.design_gaps||[]).length) h += `　<span class="warn">⚠️ 教案薄弱点：${L.design_gaps[0]}</span>`;
+  $("lesson").innerHTML = h;
+});
+
+function say(role, text, who, beh){
+  const d = document.createElement("div");
+  d.className = "msg " + role;
+  d.innerHTML = (who ? `<div class="who">${who}${beh?`<span class="beh">${beh}</span>`:""}</div>` : "") +
+                (text||"").replace(/</g,"&lt;");
+  $("chat").appendChild(d);
+  $("chat").scrollTop = $("chat").scrollHeight;
+}
+
+function renderSeat(list){
+  $("seat").innerHTML = list.map(s=>`
+    <div class="stu" data-name="${s.name}" id="stu_${s.name}">
+      <div class="nm">${s.name}</div>
+      <div class="ar">${s.archetype}</div>
+      <div class="mc">预设错误：${s.misconception||"—"}</div>
+      <div class="bar"><i style="width:${Math.round(s.engagement*100)}%"></i></div>
+      <div class="ar" style="margin-top:4px">参与度 ${s.engagement}</div>
+    </div>`).join("");
+}
+
+function tag(f, text){
+  if(f==null) return;
+  const cls = f<=4 ? "c-ind" : (f<=7 ? "c-dir" : "c-stu");
+  const col = f<=4 ? "#60a5fa" : (f<=7 ? "#f87171" : "#cbd5e1");
+  const d = document.createElement("div");
+  d.className = "tag";
+  d.innerHTML = `<span class="no ${cls}">${f}</span>
+    <span class="sw" style="background:${col}"></span>
+    <span class="tx">${text||NAMES[f]}</span>`;
+  $("tags").prepend(d);
+}
+
+$("btnCast").onclick = async () => {
+  $("btnCast").disabled = true;
+  const r = await fetch("/api/cast", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({seed:7})});
+  const d = await r.json();
+  S.session = d.session;
+  renderSeat(d.students);
+  $("say").disabled = false; $("btnSay").disabled = false;
+  $("btnFinish").disabled = false;
+  $("say").focus();
+  say("sys", "课堂已开始。试着讲一句，然后提个问题 —— 注意右边的等待计时器。");
+};
+
+async function refreshState(){
+  if(!S.session) return;
+  const r = await fetch("/api/state/" + S.session);
+  const d = await r.json();
+  const roster = d.states.map(x=>x.name);
+  const ignored = roster.filter(n=>!S.called.has(n));
+  const m = {q: d.turns.filter(t=>t.fias===4 && t.speaker==="teacher").length, ig: ignored.length};
+  $("livekv").innerHTML = `提问 ${m.q} 次 · 被忽略 ${m.ig} 人` +
+    (m.ig ? `<br><span class="warn">🔴 ${ignored.join("、")} 还没被叫到</span>` : "");
+  // 粗略实时 IDR（完整指标以报告为准）
+  const ind = d.turns.filter(t=>[1,2,3,4].includes(t.fias)).length;
+  const dir = d.turns.filter(t=>[5,6,7].includes(t.fias)).length;
+  $("idr").textContent = dir ? (ind/dir).toFixed(2) : (ind ? "∞" : "—");
+}
+
+async function speak(text){
+  const r = await fetch("/api/say", {method:"POST", headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({session:S.session, text})});
+  const d = await r.json();
+  (d.teacher||[]).forEach(t=>{
+    say("teacher", t.text, "你（老师）", t.self_answered ? "自问自答" : "");
+    tag(t.fias, NAMES[t.fias]);
+  });
+  (d.students||[]).forEach(s=>{
+    if(s.behavior==="走神"){ say("sys", `${s.name} 走神了`); markAway(s.name); }
+    else say("student", s.text, s.name, "抢答"), tag(9, "主动发起");
+  });
+  if(d.need_yield) showPending();
+  refreshState();
+}
+
+function showPending(){
+  S.pending = true; S.t0 = Date.now();
+  $("pending").style.display = "flex";
+  S.timer = setInterval(()=>{ $("timer").textContent = ((Date.now()-S.t0)/1000).toFixed(1)+"s"; }, 100);
+  $("say").focus();
+}
+function hidePending(){
+  S.pending = false; clearInterval(S.timer);
+  $("pending").style.display = "none"; $("timer").textContent = "0.0s";
+}
+
+$("btnSay").onclick = async () => {
+  const t = $("say").value.trim();
+  if(!t || !S.session) return;
+  const wasPending = S.pending;
+  $("say").value = "";
+  if(wasPending){ hidePending(); }
+  if(!wasPending) say("teacher", t, "你（老师）");
+  await speak(t);
+};
+
+$("say").addEventListener("keydown", e => { if(e.key === "Enter") $("btnSay").click(); });
+
+$("btnYield").onclick = async () => {
+  const wait = Date.now() - S.t0;
+  hidePending();
+  const r = await fetch("/api/yield", {method:"POST", headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({session:S.session, wait_ms:wait})});
+  const d = await r.json();
+  S.called.add(d.student.name);
+  say("student", d.student.text, d.student.name, `${d.student.behavior}·等待 ${(wait/1000).toFixed(1)}s`);
+  tag(8, "学生应答");
+  markTalking(d.student.name);
+  (d.students||[]).forEach(s=>{
+    if(s.behavior==="走神"){ say("sys", `${s.name} 走神了`); markAway(s.name); }
+    else say("student", s.text, s.name, "抢答"), tag(9, "主动发起");
+  });
+  refreshState();
+};
+
+function markTalking(n){ document.querySelectorAll(".stu").forEach(e=>e.classList.remove("talking"));
+  const e = $("stu_"+n); if(e) e.classList.add("talking"); }
+function markAway(n){ const e = $("stu_"+n); if(e){ e.classList.add("away");
+  if(!e.querySelector(".badge")) e.insertAdjacentHTML("afterbegin", '<span class="badge">走神</span>'); } }
+
+$("btnFinish").onclick = async () => {
+  if(S.pending) hidePending();
+  $("btnFinish").disabled = true;
+  const r = await fetch("/api/finish", {method:"POST", headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({session:S.session})});
+  const d = await r.json();
+  $("report").style.display = "block";
+  $("reportText").textContent = d.metrics_text + "\n\n" + d.report_text;
+  $("report").scrollIntoView({behavior:"smooth"});
+};
+</script>
+</body>
+</html>
