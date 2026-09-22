@@ -149,8 +149,10 @@ def api_say(req: SayReq) -> dict:
         out["need_yield"] = True
         return out
 
-    # 非提问 → 其他学生可能抢答/走神
-    out["students"] = _others(st, db, text, spoke=None)
+    # 非提问 → 其他学生可能抢答/走神（并行生成）
+    jobs = [(s, text, False, False) for s in st["cast"]]
+    results = students.act_many(jobs)
+    out["students"] = _record_others(st, db, st["cast"], results, spoke=None)
     return out
 
 
@@ -161,7 +163,11 @@ class YieldReq(BaseModel):
 
 @app.post("/api/yield")
 def api_yield(req: YieldReq) -> dict:
-    """老师把话交出去 → 让学生回答（等待时长由前端传入）"""
+    """老师把话交出去 → 让学生回答（等待时长由前端传入）
+
+    ★ 性能：被点名的学生和其他想抢答/走神的学生【并行】生成，
+      否则一轮会因为串行调用变成 4~6 秒。
+    """
     st = SESSIONS.get(req.session)
     if not st:
         raise HTTPException(404, "会话不存在")
@@ -169,10 +175,15 @@ def api_yield(req: YieldReq) -> dict:
         raise HTTPException(400, "当前没有待回答的提问")
     db = store.Store(ROOT / "kejing_web.db")
     last_teacher = next((t for t in reversed(st["turns"]) if t["speaker"] == "teacher"), None)
-    stu = pick_target((last_teacher or {}).get("text", ""), st["cast"],
-                      (last_teacher or {}).get("target"), st["called"])
+    q_text = (last_teacher or {}).get("text", "")
+    stu = pick_target(q_text, st["cast"], (last_teacher or {}).get("target"), st["called"])
     st["called"].add(stu.name)
-    out = stu.act((last_teacher or {}).get("text", ""), is_question=True, is_called=True)
+
+    names = [s.name for s in st["cast"]]
+    jobs = [(s, q_text, s is stu, s is stu) for s in st["cast"]]
+    results = students.act_many(jobs)
+    out = results[names.index(stu.name)]
+
     st["idx"] += 1
     db.add_turn(st["db_sid"], st["idx"], "student", stu.name, out["text"] or "（沉默）", 8,
                 wait_ms=req.wait_ms, behavior=out["behavior"])
@@ -180,27 +191,27 @@ def api_yield(req: YieldReq) -> dict:
                         "text": out["text"] or "（沉默）", "fias": 8,
                         "wait_ms": req.wait_ms, "behavior": out["behavior"]})
     st["pending"] = False
-    others = _others(st, db, (last_teacher or {}).get("text", ""), spoke=stu.name)
+    others = _record_others(st, db, st["cast"], results, spoke=stu.name)
     return {"student": {"name": stu.name, "text": out["text"], "behavior": out["behavior"],
                         "source": out["source"], "wait_ms": req.wait_ms},
             "students": others}
 
 
-def _others(st: dict, db: store.Store, teacher_text: str, spoke: str | None) -> list[dict]:
-    """未被点名的其他学生：只可能出现「抢答 / 走神」"""
+def _record_others(st: dict, db: store.Store, cast: list, results: list[dict],
+                   spoke: str | None) -> list[dict]:
+    """把【并行生成好的】结果写进事件流。只可能出现「抢答 / 走神」。"""
     res = []
-    for s in st["cast"]:
+    for s, r in zip(cast, results):
         if s.name == spoke:
             continue
-        out = s.act(teacher_text, is_question=False, is_called=False)
-        if out["text"] and out["behavior"] == "抢答":
+        if r.get("text") and r.get("behavior") == "抢答":
             st["idx"] += 1
-            db.add_turn(st["db_sid"], st["idx"], "student", s.name, out["text"], 9,
+            db.add_turn(st["db_sid"], st["idx"], "student", s.name, r["text"], 9,
                         behavior="抢答")
             st["turns"].append({"idx": st["idx"], "speaker": "student", "name": s.name,
-                                "text": out["text"], "fias": 9, "behavior": "抢答"})
-            res.append({"name": s.name, "text": out["text"], "behavior": "抢答"})
-        elif out["behavior"] == "走神":
+                                "text": r["text"], "fias": 9, "behavior": "抢答"})
+            res.append({"name": s.name, "text": r["text"], "behavior": "抢答"})
+        elif r.get("behavior") == "走神":
             st["idx"] += 1
             db.add_turn(st["db_sid"], st["idx"], "student", s.name, "（走神中）", None,
                         behavior="走神")

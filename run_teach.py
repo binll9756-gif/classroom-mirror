@@ -123,6 +123,8 @@ def run_round(round_no: int, cast: list[students.Student], st: store.Store,
         st.add_turn(sid, idx, "teacher", "师范生", line, f, target=target_name)
 
         spoke_name: str | None = None
+        stu = None
+        wait_ms = None
 
         if asked:
             t0 = time.time()
@@ -142,20 +144,27 @@ def run_round(round_no: int, cast: list[students.Student], st: store.Store,
             else:
                 stu = pick_target(line, cast, target_name, called)
                 called.add(stu.name)
-                out = stu.act(line, is_question=True, is_called=True)
-                idx += 1
-                st.add_turn(sid, idx, "student", stu.name, out["text"] or "（沉默）", 8,
-                            wait_ms=wait_ms, behavior=out["behavior"])
                 spoke_name = stu.name
-                print(f"   [{stu.name}] {out['text']}　（{out['behavior']}，等待 {wait_ms/1000:.1f}s）")
 
-        # ------------------------------ 未被点名的其他学生
-        # 只允许「抢答 / 走神」两种行为；被提问的回答只能由上一位学生给出。
+        # ------------------------------ 并行生成：被点名的学生 + 其他学生的反应
+        # ★ 串行会让一轮从 2 秒变成 4~6 秒；Ollama 支持并发，实测并行有效。
+        jobs = []
         for s in cast:
-            if s.name == spoke_name:
-                continue
-            out = s.act(line, is_question=False, is_called=False)
-            if out["text"] and out["behavior"] == "抢答":
+            if stu is not None and s is stu:
+                jobs.append((s, line, True, True))
+            elif s.name == spoke_name:
+                continue                      # 自问自答时，被点名的学生也不说话
+            else:
+                jobs.append((s, line, False, False))
+        results = students.act_many(jobs)
+
+        for (s, _t, _q, _c), out in zip(jobs, results):
+            if s is stu:
+                idx += 1
+                st.add_turn(sid, idx, "student", s.name, out["text"] or "（沉默）", 8,
+                            wait_ms=wait_ms, behavior=out["behavior"])
+                print(f"   [{s.name}] {out['text']}　（{out['behavior']}，等待 {wait_ms/1000:.1f}s）")
+            elif out["text"] and out["behavior"] == "抢答":
                 idx += 1
                 st.add_turn(sid, idx, "student", s.name, out["text"], 9, behavior="抢答")
                 print(f"   [{s.name}] {out['text']}　（主动抢答）")
