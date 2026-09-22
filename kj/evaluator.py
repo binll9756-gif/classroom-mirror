@@ -52,17 +52,19 @@ def find_issues(lesson: dict | None, m: dict, turns: list[dict],
             q_ids[:4])
 
     # 1) IDR：与人类教师基线的比较
+    #    ★ 把「建议的目标数值」直接写进事实里，模型就不会自己编数字了
     idr = m.get("IDR")
     if idr is not None:
         if idr < 0.5:
             add("risk", "IDR 过低",
                 f"你的间接引导/直接讲授比（IDR）只有 {idr}，远低于新手人类教师的 {IDR_NOVICE}"
-                f"（专家为 {IDR_EXPERT}）。这一节课你主要在「讲」，很少「引」。",
+                f"（专家为 {IDR_EXPERT}）。这一节课你主要在「讲」，很少「引」。"
+                f"下一轮可把目标定为 IDR 达到 {IDR_NOVICE}。",
                 q_ids[:6] or guide_ids[:6])
         elif idr < IDR_NOVICE:
             add("warn", "IDR 偏低",
                 f"你的 IDR 是 {idr}，低于新手人类教师的 {IDR_NOVICE}。可以再多用一点"
-                f"「采纳学生想法」「表扬鼓励」这类间接引导。",
+                f"「采纳学生想法」「表扬鼓励」这类间接引导，下一轮目标定为 {IDR_NOVICE}。",
                 q_ids[:4] or guide_ids[:4])
 
     # 2) 等待时间
@@ -81,9 +83,10 @@ def find_issues(lesson: dict | None, m: dict, turns: list[dict],
     # 3) 自问自答
     sar = m.get("self_answer_rate")
     if sar:
+        n_sa = int(round(sar * (m.get("teacher_questions") or 0)))
         add("risk", "自问自答",
-            f"有 {int(round(sar * (m.get('teacher_questions') or 0)))} 次提问，"
-            f"你没等学生回答就自己把答案说了。这样学生就失去了思考的机会。",
+            f"有 {n_sa} 次提问，你没等学生回答就自己把答案说了。"
+            f"这样学生就失去了思考的机会。建议：提问后先等 3 秒，再决定是自己讲还是让学生答。",
             q_ids[:6])
 
     # 4) 有学生没被点名 —— ★ 要区分「没被点名但主动发过言」和「完全没参与」
@@ -98,13 +101,15 @@ def find_issues(lesson: dict | None, m: dict, turns: list[dict],
     if quiet:
         add("risk", "有学生整节课没参与",
             f"{'、'.join(quiet)} 这节课既没被叫到、也没有主动发言。"
-            f"课堂参与是不公平的 —— 这类学生往往最容易掉队。",
+            f"课堂参与是不公平的 —— 这类学生往往最容易掉队。建议下一轮至少点他一次。",
             [])
     if active_only:
+        n_spoke = sum(1 for t in turns
+                      if t.get("name") in active_only and t.get("speaker") == "student")
         add("warn", "有学生只靠自己主动发言",
-            f"{'、'.join(active_only)} 这节课**一次都没被你点名**，"
-            f"他是靠自己抢答参与的（发言 {sum(1 for t in turns if t.get('name') in active_only and t.get('speaker')=='student')} 次）。"
-            f"主动的孩子也需要被老师点到 —— 否则发言权只掌握在敢抢的人手里。",
+            f"{'、'.join(active_only)} 这节课一次都没被你点名，"
+            f"而是靠自己主动发言参与了 {n_spoke} 次。"
+            f"主动的学生也需要被老师点到 —— 否则发言权只掌握在敢抢的人手里。",
             [])
 
     # 5) 提问层次

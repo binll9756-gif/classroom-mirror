@@ -111,16 +111,23 @@ def main():
          "behavior": "抢答"},
         {"idx": 8, "speaker": "teacher", "fias": 5, "text": "再看一个", "behavior": ""},
     ]
-    ms = fias.compute_metrics(small_turns, ["小林", "小周", "阿豪"])
-    rs = evaluator.build_report(None, ms, small_turns, ["小林", "小周", "阿豪"],
+    ms = fias.compute_metrics(small_turns, ["小林", "小周", "阿豪", "小美"])
+    rs = evaluator.build_report(None, ms, small_turns, ["小林", "小周", "阿豪", "小美"],
                                write_advice=False)
     T("IDR 确实算到了 1.5（指标本身是对的）", ms["IDR"] == 1.5, f"实际 {ms['IDR']}")
     T("小样本时报告标注「样本量偏小」", rs["small_sample"] is True)
     facts = " ".join(i["fact"] for i in rs["issues"])
     T("小样本时【不】说 IDR 达到教师水平", "达到" not in facts or "IDR" not in facts,
       facts[:50])
-    T("抢答过的学生被描述为「靠自己抢答参与」而不是「掉队」",
-      "靠自己抢答参与" in facts and "掉队" not in facts)
+    # 关键不变量：主动发过言的学生要单独归类，且【他自己那条】不能写"掉队"
+    act = [i for i in rs["issues"] if i["kind"] == "有学生只靠自己主动发言"]
+    T("主动发过言的学生被单独归类，措辞不含「掉队」",
+      len(act) == 1 and "掉队" not in act[0]["fact"] and "主动发言" in act[0]["fact"],
+      act[0]["fact"][:40] if act else "没生成这条")
+    quiet = [i for i in rs["issues"] if i["kind"] == "有学生整节课没参与"]
+    T("既没被叫到也没发言的才判为「没参与」（小美）",
+      len(quiet) == 1 and "小美" in quiet[0]["fact"],
+      quiet[0]["fact"][:30] if quiet else "没生成这条")
     T("每条诊断都带 evidence_turn_ids 字段",
       all("evidence_turn_ids" in i for i in rs["issues"]))
 
