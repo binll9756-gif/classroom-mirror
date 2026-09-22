@@ -93,33 +93,38 @@ def compute_metrics(turns: list[dict], roster: list[str]) -> dict:
     idr = ratio(sum(counts[c] for c in INDIRECT), sum(counts[c] for c in DIRECT))
     sir = ratio(counts[9], counts[8] + counts[9])
 
-    # 等待时间 / 抢答率：教师提问(4)之后，下一位发言者的等待时长
-    waits, rush = [], 0
-    q_count = 0
-    answered = 0
+    # ---- 等待时间 / 自问自答率 / 叫答分布 ----
+    # 语义区分（这里踩过坑，别搞混）：
+    #   · 「自问自答」= 老师提了问，下一个开口的还是老师 → 这才叫抢答（老师没把话交出去）
+    #   · 「提问后马上叫学生」= 正常教学，只是等待时间短 → 计入 short_wait_rate，不算抢答
+    waits, self_answer, short_wait = [], 0, 0
+    q_count = answered = 0
+    call = {name: 0 for name in roster}
+
     for i, t in enumerate(turns):
         if t.get("fias") != 4 or t.get("speaker") != "teacher":
             continue
         q_count += 1
         nxt = turns[i + 1] if i + 1 < len(turns) else None
-        if nxt is None:
-            rush += 1
-            continue
-        w = nxt.get("wait_ms")
-        if nxt.get("speaker") == "student":
-            answered += 1
-            if w is not None:
-                waits.append(w)
-                if w < 1500:
-                    rush += 1
-        else:
-            rush += 1  # 自问自答 = 抢答
 
-    # 叫答分布（只统计教师明确点名/提问指向的对象）
-    call = {name: 0 for name in roster}
-    for t in turns:
-        if t.get("speaker") == "teacher" and t.get("target") in call:
-            call[t["target"]] += 1
+        if nxt is None or nxt.get("speaker") == "teacher":
+            self_answer += 1          # 自问自答
+            continue
+
+        answered += 1
+        w = nxt.get("wait_ms")
+        if w is not None:
+            waits.append(w)
+            if w < 1500:
+                short_wait += 1
+
+        # 谁被叫到了：优先看「提问后实际作答的那位」；他没作答就用教师指定的 target
+        who = nxt.get("name") if nxt.get("fias") == 8 else None
+        if who not in call:
+            who = t.get("target")
+        if who in call:
+            call[who] += 1
+
     ignored = [n for n, v in call.items() if v == 0]
 
     bloom = {}
@@ -136,7 +141,9 @@ def compute_metrics(turns: list[dict], roster: list[str]) -> dict:
         "teacher_questions": q_count,
         "answered_questions": answered,
         "avg_wait_s": round(sum(waits) / len(waits) / 1000, 2) if waits else None,
-        "rush_rate": ratio(rush, q_count),
+        "self_answer_rate": ratio(self_answer, q_count),      # 自问自答（真正的抢答）
+        "short_wait_rate": ratio(short_wait, answered),        # 等待不足 1.5 秒的比例
+        "rush_rate": ratio(self_answer, q_count),              # 兼容旧字段名
         "call_distribution": call,
         "ignored_students": ignored,
         "bloom_distribution": bloom,
@@ -160,7 +167,9 @@ def format_metrics(m: dict, label: str = "") -> str:
     for k, v in BASELINE_IDR.items():
         lines.append(f"      （对照）{k}：{v}")
     lines.append(f"  SIR 学生主动发起比 = {m['SIR']}　← ⚠️ 受学生参与度参数影响，不作为师范生能力证据")
-    lines.append(f"  平均等待时间 = {m['avg_wait_s']} 秒　抢答率 = {m['rush_rate']}　（教育学研究建议 ≥3 秒）")
+    lines.append(f"  平均等待时间 = {m['avg_wait_s']} 秒　等待不足1.5秒的比例 = {m.get('short_wait_rate')}"
+                 f"　（教育学研究建议 ≥3 秒）")
+    lines.append(f"  自问自答率 = {m.get('self_answer_rate')}　← 老师提了问又自己接着说（这才是真正的抢答）")
     lines.append(f"  记忆型提问占比 = {m['memory_question_ratio']}　提问层次分布 = {m['bloom_distribution']}")
     lines.append(f"  叫答分布 = {m['call_distribution']}")
     if m["ignored_students"]:

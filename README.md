@@ -29,33 +29,61 @@ cd classroom-mirror
 python --version            # 需要 3.11+
 pip install -r requirements.txt
 
-# 1) 跑检查（17 项，应该全部 ✅）
+# 1) 跑检查（19 项，应该全部 ✅）
 python tests/test_fias.py
 
-# 2) 跑完整演示（两轮试讲 + 指标 + 对比）
-python run_demo.py
+# 2) ★ 正常使用：对着 AI 学生试讲（推荐先玩这个）
+python run_teach.py
 ```
 
-**不需要 API Key 也能跑**——离线模式下学生台词用模板生成，但 **FIAS 指标照常真实计算**。
+### 用哪个模型？（二选一）
 
-想接真模型（让 AI 学生自己说话）：
+**方案 A：本地 Ollama（推荐）** — 免费、无限次调试、**数据不出本机**、断网也能演示
 
 ```powershell
-$env:OPENAI_API_KEY="sk-你的key"
-$env:OPENAI_BASE_URL="https://api.deepseek.com/v1"    # 任何 OpenAI 兼容端点
-$env:KJ_MODEL="deepseek-chat"
-python run_demo.py
+# 前提：本机装了 Ollama 且已 pull 模型
+ollama list                  # 确认 qwen3.5:9b 在
+copy .env.example .env       # 然后按需改（.env 已被 .gitignore 挡住）
+python run_teach.py
 ```
+
+`.env` 内容（默认就是本地 Ollama）：
+```
+KJ_PROVIDER=ollama
+OPENAI_BASE_URL=http://127.0.0.1:11434
+KJ_MODEL=qwen3.5:9b
+OPENAI_API_KEY=ollama
+```
+
+> ⚠️ **必须用 `127.0.0.1` 不要用 `localhost`**：Windows 会把 `localhost` 先解析成 IPv6 `::1`，
+> 连不上再回退 IPv4，**每次请求白等约 2 秒**。实测学生台词 **4.13s → 1.77s**。
+
+**方案 B：云端 OpenAI 兼容接口**（DeepSeek / 通义 / 智谱）
+
+```
+KJ_PROVIDER=openai
+OPENAI_BASE_URL=https://api.deepseek.com/v1
+KJ_MODEL=deepseek-chat
+OPENAI_API_KEY=sk-你的key
+```
+
+**没有任何模型也能跑**：离线模式下学生台词用模板兜底，但 **FIAS 指标照常真实计算**。
 
 > 中文输出若乱码：先执行 `$env:PYTHONIOENCODING='utf-8'`（PowerShell）
 
-**实测输出**（离线模式，可复现）：
+### 另外一个不带交互的演示（不用输入）
+
+```powershell
+python run_demo.py     # 脚本化的两轮试讲，自动跑完出对比
+```
+
+**实测输出**（离线脚本模式，可复现）：
 
 ```
   指标                           第一轮       第二轮        变化  结论
   IDR 间接/直接影响比               0.143     1.333      1.19  ↑ 改善
   平均等待时间(秒)                    0.9       3.5       2.6  ↑ 改善
-  抢答率                          1.0       0.0      -1.0  ↑ 改善
+  自问自答率                        1.0       0.0      -1.0  ↑ 改善
   记忆型提问占比                      1.0      0.25     -0.75  ↑ 改善
   教师提问次数                         1         4         3  ↑ 改善
   被忽略学生数                         2         0        -2  ↑ 改善
@@ -98,20 +126,25 @@ state = {"understanding": 0.2, "confusion": 0.7, "convinced": False, "patience":
 ├─ 00_先看这里.md                ← 导航页（第一步看哪三份文件）
 ├─ requirements.txt
 ├─ .gitignore                   挡住密钥、缓存、大文件
+├─ .env.example                 ★ 模型配置模板（复制成 .env 用）
 │
-├─ run_demo.py                  两轮试讲演示
+├─ run_teach.py                 ★★ 正常使用入口：对着 AI 学生试讲（交互式）
+├─ run_demo.py                  脚本化两轮演示（不用输入，自动跑完）
 │
-├─ kj/                          核心代码（4 个模块，每个只管一件事）
-│   ├─ fias.py                  ★ FIAS 九类 + 编码 + 指标计算（纯代码，不调用模型）
-│   ├─ students.py              ★ 虚拟学生：画像 + 认知状态机 + 台词（最难的一处）
+├─ kj/                          核心代码（6 个模块，每个只管一件事）
+│   ├─ fias.py                  ★ 纯代码：FIAS 九类 + 编码 + 指标计算（不调用模型）
+│   ├─ students.py              ★ 虚拟学生：画像 + 认知状态机 + 台词
+│   │                              代码决定行为，模型只负责把话说出来
+│   ├─ lesson.py                教案解析 + 目标—活动—评价对齐检查（检查是纯代码）
+│   ├─ evaluator.py             ★ 评价报告：代码发现问题（带证据），模型只负责措辞
 │   ├─ store.py                 事件流存储（SQLite）+ 两轮对比
-│   └─ llm.py                   模型调用薄封装（没 Key 自动降级为离线）
+│   └─ llm.py                   模型调用层（本地 Ollama / 云端，自动降级）
 │
 ├─ knowledge/
 │   └─ misconceptions.yaml      ★ 迷思概念库（⚠️ 待数学教育方向教师审阅）
 │
 ├─ tests/
-│   └─ test_fias.py             最小可跑检查（17 项，不依赖 pytest）
+│   └─ test_fias.py             最小可跑检查（19 项，不依赖 pytest）
 │
 ├─ tools/
 │   └─ md2docx.py               说明书 Markdown → Word（含字数统计）
@@ -172,17 +205,21 @@ state = {"understanding": 0.2, "confusion": 0.7, "convinced": False, "patience":
 
 ## 六、当前进度（诚实版）
 
+> 更新于 2026-09-21。
+
 | 项 | 状态 |
 |---|---|
-| 核心链路（学生 → 状态机 → FIAS → 指标 → 两轮对比） | ✅ **已跑通**，17 项检查全过 |
-| 离线模式（无 Key 可跑） | ✅ 完成 |
-| 接入真模型生成学生台词 | ⬜ 待做（接口已留：`students.student_line_online`） |
-| FIAS 编码换成 LLM 调用 | ⬜ 待做（`fias.rule_classify` 是关键词基线，已知会判错） |
-| 教案上传解析 | ⬜ 待做 |
-| Web 界面 | ⬜ 待做 |
+| 核心链路（学生 → 状态机 → FIAS → 指标 → 两轮对比） | ✅ **已跑通**，19 项检查全过 |
+| 离线模式（无模型也能跑） | ✅ 完成 |
+| **接入真模型生成学生台词** | ✅ **已完成**（本地 Ollama 实测 **约 2 秒/句**，可用 `student.act()`） |
+| **教案解析 + 对齐检查** | ✅ **已完成**（`kj/lesson.py`，实测解析一份教案约 24 秒） |
+| **评价报告（带证据）** | ✅ **已完成**（`kj/evaluator.py`：代码发现问题 + 模型润色） |
+| **交互式试讲入口** | ✅ **已完成**（`python run_teach.py`） |
+| FIAS 编码换成 LLM 调用 | ⬜ 待做（现在是关键词规则 `fias.rule_classify`，**已知会判错**） |
+| Web 界面（5 个页面） | ⬜ **待做（最大的一块）** |
 | 公网部署 + 测试账号（比赛硬要求） | ⬜ 待做 |
 | 用户测试（n≥10） | ⬜ 待做 |
-| 说明书 | ✅ 已完成（2421 字） |
+| 说明书 | 🟡 已完成但**有 7 处【待填】**（要等真实测试数据） |
 
 **没有实现的不要写成已实现**——评审和队友都会追问细节。
 

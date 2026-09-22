@@ -49,9 +49,25 @@ def main():
     T("ST = 2/5 = 0.4", m["ST"] == 0.4, f"实际 {m['ST']}")
     T("SIR = 第9类/(第8+9类) = 1/2 = 0.5", m["SIR"] == 0.5, f"实际 {m['SIR']}")
     T("平均等待时间 = 3.2 秒", m["avg_wait_s"] == 3.2, f"实际 {m['avg_wait_s']}")
-    T("等待 3.2s ≥1.5s，不算抢答", m["rush_rate"] == 0.0, f"实际 {m['rush_rate']}")
+    T("等待 3.2s ≥1.5s，不算短等待", m["short_wait_rate"] == 0.0, f"实际 {m['short_wait_rate']}")
+    T("没有自问自答 → self_answer_rate = 0.0", m["self_answer_rate"] == 0.0,
+      f"实际 {m['self_answer_rate']}")
+    T("叫答分布按【实际作答者】统计（小林 = 1）", m["call_distribution"]["小林"] == 1,
+      f"实际 {m['call_distribution']}")
     T("未点名的学生被识别为被忽略的学生", m["ignored_students"] == ["小周"],
       f"实际 {m['ignored_students']}")
+
+    print("\n=== 2.5 「自问自答」必须与「提问后马上叫学生」区分开 ===")
+    sa = [
+        {"speaker": "teacher", "fias": 4, "text": "谁会做这道题？", "name": "师"},
+        {"speaker": "teacher", "fias": 5, "text": "好那我自己讲一遍。", "name": "师",
+         "wait_ms": 800},
+    ]
+    ms = fias.compute_metrics(sa, ["小林"])
+    T("老师提了问又自己接着说 → self_answer_rate = 1.0", ms["self_answer_rate"] == 1.0,
+      f"实际 {ms['self_answer_rate']}")
+    T("这种情况不算学生获得回答机会", ms["answered_questions"] == 0,
+      f"实际 {ms['answered_questions']}")
 
     print("\n=== 3. 除零保护（老师一句提问都没有时不能崩）===")
     only_lecture = [{"speaker": "teacher", "fias": 5, "text": "讲", "name": "师"}]

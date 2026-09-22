@@ -71,9 +71,10 @@ def compare(m1: dict, m2: dict) -> list[tuple]:
     for key, label, better in [
         ("IDR", "IDR 间接/直接影响比", "up"),
         ("avg_wait_s", "平均等待时间(秒)", "up"),
-        ("rush_rate", "抢答率", "down"),
+        ("self_answer_rate", "自问自答率", "down"),
         ("memory_question_ratio", "记忆型提问占比", "down"),
         ("teacher_questions", "教师提问次数", "up"),
+        ("answered_questions", "学生获得回答机会次数", "up"),
     ]:
         a, b = m1.get(key), m2.get(key)
         if isinstance(a, (int, float)) and isinstance(b, (int, float)):
